@@ -60,6 +60,10 @@ def main():
         '--output', type=str, required=True,
         help='Output Parquet file path'
     )
+    p.add_argument(
+        '--verbose', action='store_true',
+        help='Print verbose output for debugging.'
+    )
     args = p.parse_args()
 
     try:
@@ -73,7 +77,11 @@ def main():
 
     osm_json = overpass_query(bbox)
     df = osm_json_to_df(osm_json)
-
+    if args.verbose:
+        print(f"[VERBOSE] Overpass API elements: {len(osm_json.get('elements', []))}")
+        print(f"[VERBOSE] DataFrame shape: {df.shape}")
+        print(f"[VERBOSE] DataFrame columns: {list(df.columns)}")
+        print(f"[VERBOSE] DataFrame head:\n{df.head()}\n")
     # Write to Parquet
     out_dir = os.path.dirname(args.output)
     if out_dir:

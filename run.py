@@ -10,6 +10,9 @@ End-to-end runner for OSM + Foursquare POI reconciliation demo.
 import os
 import subprocess
 import sys
+import argparse
+import duckdb
+
 
 # Step 1: Fetch Foursquare and OSM data if not present
 RAW_DIR = "data/raw"
@@ -23,7 +26,7 @@ fetch_scripts = [
 
 import pandas as pd
 
-def ensure_data():
+def ensure_data(verbose=False):
     os.makedirs(RAW_DIR, exist_ok=True)
     # Use correct bbox order for OSM (min_lon,min_lat,max_lon,max_lat)
     # Manhattan: -74.020325,40.700292,-73.907000,40.877483
@@ -31,6 +34,7 @@ def ensure_data():
     region_desc = "Manhattan, NYC"
     print(f"[INFO] Default bounding box points to {region_desc}.")
     print("  Format: min_lon,min_lat,max_lon,max_lat")
+    print("[INFO] You can enable verbose mode for fetch scripts with --verbose.")
     user_bbox = input(f"Enter bounding box (blank for default: {default_bbox}): ").strip()
     bbox = user_bbox if user_bbox else default_bbox
     for label, script, parquet in fetch_scripts:
@@ -40,6 +44,9 @@ def ensure_data():
                 cmd = [sys.executable, script, f"--bbox={bbox}", "--output", parquet]
             else:
                 cmd = [sys.executable, script, "--bbox", bbox, "--output", parquet]
+            if verbose:
+                cmd.append("--verbose")
+                print(f"[VERBOSE] Running: {' '.join(cmd)}")
             result = subprocess.run(cmd, check=True)
         else:
             # Check if Parquet file is non-empty
@@ -52,6 +59,9 @@ def ensure_data():
                         cmd = [sys.executable, script, f"--bbox={bbox}", "--output", parquet]
                     else:
                         cmd = [sys.executable, script, "--bbox", bbox, "--output", parquet]
+                    if verbose:
+                        cmd.append("--verbose")
+                        print(f"[VERBOSE] Running: {' '.join(cmd)}")
                     result = subprocess.run(cmd, check=True)
                     # Re-read after fetch
                     if not os.path.exists(parquet):
@@ -70,6 +80,9 @@ def ensure_data():
                     cmd = [sys.executable, script, f"--bbox={bbox}", "--output", parquet]
                 else:
                     cmd = [sys.executable, script, "--bbox", bbox, "--output", parquet]
+                if verbose:
+                    cmd.append("--verbose")
+                    print(f"[VERBOSE] Running: {' '.join(cmd)}")
                 result = subprocess.run(cmd, check=True)
                 if not os.path.exists(parquet):
                     print(f"[ERROR] {parquet} was not created by {script}. Exiting.")
@@ -81,10 +94,8 @@ def ensure_data():
                 print(f"[INFO] {parquet} refetched and contains {len(df)} records.")
 
 # Step 2: Load data into DuckDB as fsq_raw and osm_raw
-import duckdb
 DB_PATH = "smart.db"
 def load_to_duckdb():
-    import duckdb
     try:
         con = duckdb.connect(DB_PATH)
         if not con.execute("SELECT * FROM information_schema.tables WHERE table_name='fsq_raw'").fetchone():
@@ -115,8 +126,12 @@ def run_feature_engineering():
     print("[INFO] Running feature engineering and candidate generation...")
     result = subprocess.run([sys.executable, "scripts/feature_engineering.py"], check=True)
 
+
 if __name__ == "__main__":
-    ensure_data()
+    parser = argparse.ArgumentParser(description="Run the OSM+FSQ pipeline end-to-end.")
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose mode for fetch scripts.')
+    args = parser.parse_args()
+    ensure_data(verbose=args.verbose)
     load_to_duckdb()
     run_feature_engineering()
     print("\n[INFO] Pipeline complete!")

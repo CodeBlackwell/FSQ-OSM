@@ -80,6 +80,10 @@ def main():
         '--output', type=str, required=True,
         help='Output Parquet file path'
     )
+    parser.add_argument(
+        '--verbose', action='store_true',
+        help='Print verbose output for debugging.'
+    )
     args = parser.parse_args()
 
     # Parse bbox
@@ -101,6 +105,10 @@ def main():
 
     # Fetch data
     df = fetch_fsq_api(api_key, bbox)
+    if args.verbose:
+        print(f"[VERBOSE] DataFrame shape: {df.shape}")
+        print(f"[VERBOSE] DataFrame columns: {list(df.columns)}")
+        print(f"[VERBOSE] DataFrame head:\n{df.head()}\n")
     if df.empty:
         print("No places found for the given bounding box.")
     else:
