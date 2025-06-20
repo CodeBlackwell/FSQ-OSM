@@ -26,24 +26,14 @@ fetch_scripts = [
 
 import pandas as pd
 
-def ensure_data(verbose=False):
+def ensure_data(bbox, query=None, verbose=False):
     os.makedirs(RAW_DIR, exist_ok=True)
-    # Use correct bbox order for OSM (min_lon,min_lat,max_lon,max_lat)
-    # Manhattan: -74.020325,40.700292,-73.907000,40.877483
-    default_bbox = "-74.020325,40.700292,-73.907000,40.877483"  # Manhattan, NYC
-    region_desc = "Manhattan, NYC"
-    print(f"[INFO] Default bounding box points to {region_desc}.")
-    print("  Format: min_lon,min_lat,max_lon,max_lat")
-    print("[INFO] You can enable verbose mode for fetch scripts with --verbose.")
-    user_bbox = input(f"Enter bounding box (blank for default: {default_bbox}): ").strip()
-    bbox = user_bbox if user_bbox else default_bbox
     for label, script, parquet in fetch_scripts:
         if not os.path.exists(parquet):
             print(f"[INFO] {parquet} not found. Running {script}...")
-            if script == "scripts/fetch_osm.py":
-                cmd = [sys.executable, script, f"--bbox={bbox}", "--output", parquet]
-            else:
-                cmd = [sys.executable, script, "--bbox", bbox, "--output", parquet]
+            cmd = [sys.executable, script, f"--bbox={bbox}", "--output", parquet]
+            if query and script == "scripts/fetch_fsq.py":
+                cmd += ["--query", query]
             if verbose:
                 cmd.append("--verbose")
                 print(f"[VERBOSE] Running: {' '.join(cmd)}")
@@ -129,10 +119,54 @@ def run_feature_engineering():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the OSM+FSQ pipeline end-to-end.")
+    parser.add_argument('--bbox', type=str, help='Bounding box as min_lon,min_lat,max_lon,max_lat')
+    parser.add_argument('--query', type=str, default=None, help='Foursquare query string (e.g., food, store)')
+    parser.add_argument('--distance-threshold', type=float, default=25, help='Spatial join threshold in meters (default: 25)')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose mode for fetch scripts.')
+    parser.add_argument('--clean', action='store_true', help='Purge all DuckDB tables, Parquet files, and database before running')
     args = parser.parse_args()
-    ensure_data(verbose=args.verbose)
+
+    if args.clean:
+        import glob
+        print("[INFO] --clean passed: Purging all DuckDB tables, Parquet files, and database for a fresh start.")
+        for folder in ["data/raw", "data/processed"]:
+            if os.path.exists(folder):
+                for f in glob.glob(os.path.join(folder, "*.parquet")):
+                    try:
+                        os.remove(f)
+                        print(f"[INFO] Deleted Parquet file: {f}")
+                    except Exception as e:
+                        print(f"[WARN] Could not delete {f}: {e}")
+        if os.path.exists(DB_PATH):
+            try:
+                os.remove(DB_PATH)
+                print(f"[INFO] Deleted DuckDB database: {DB_PATH}")
+            except Exception as e:
+                print(f"[WARN] Could not delete {DB_PATH}: {e}")
+        print("[INFO] All tables, Parquet files, and database dropped.")
+        sys.exit()
+
+    # Prompt for bbox if not provided
+    if not args.bbox:
+        default_bbox = "-74.020325,40.700292,-73.907000,40.877483"  # Manhattan, NYC
+        region_desc = "Manhattan, NYC"
+        print(f"[INFO] Default bounding box points to {region_desc}.")
+        print("  Format: min_lon,min_lat,max_lon,max_lat")
+        user_bbox = input(f"Enter bounding box (blank for default: {default_bbox}): ").strip()
+        bbox = user_bbox if user_bbox else default_bbox
+    else:
+        bbox = args.bbox
+
+    print(f"[INFO] Using bounding box: {bbox}")
+    ensure_data(bbox, query=args.query, verbose=args.verbose)
+    print("[INFO] Loading Parquet data into DuckDB...")
     load_to_duckdb()
-    run_feature_engineering()
+    print("[INFO] Running feature engineering pipeline...")
+    # Pass distance threshold to feature_engineering.py
+    cmd = [sys.executable, 'scripts/feature_engineering.py', f'--distance-threshold={args.distance_threshold}']
+    if args.verbose:
+        cmd.append('--verbose')
+    print(f"[INFO] Running: {' '.join(cmd)}")
+    subprocess.run(cmd, check=True)
     print("\n[INFO] Pipeline complete!")
     print("[INFO] Next: Inspect candidate_pairs table or launch the API server.")

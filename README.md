@@ -1,77 +1,99 @@
-# OSM + Foursquare Smart Reconciler PoC
+# OSM + Foursquare Smart Reconciler
 
-## Overview
-This project merges and deduplicates Points of Interest (POIs) from OpenStreetMap (OSM) and Foursquare (FSQ) for a chosen bounding box, outputting a "gold" GeoJSON layer with provenance and confidence scores.
+## 🚀 Overview
+A robust, reproducible pipeline for merging and deduplicating Points of Interest (POIs) from OpenStreetMap (OSM) and Foursquare (FSQ) within any bounding box. The end goal: **produce a "gold-standard" GeoJSON layer of POIs with provenance, deduplication, and confidence scores**—ready for analytics, mapping, or downstream apps.
 
-## Project Structure
-- `src/` — Core library code
-- `scripts/` — Data acquisition and utility scripts
-- `data/raw/` — Raw data (Parquet files)
-- `data/processed/` — Processed/merged data
-- `notebooks/` — Jupyter notebooks for exploration
-- `tests/` — Unit tests
+---
 
-## Setup
-1. **Clone the repo and install dependencies:**
-   ```bash
-   git clone <repo-url>
-   cd smart-reconciler
-   poetry install
-   ```
-2. **Set up your Foursquare API credentials:**
-   - Create a `.env` file in the project root:
-     ```ini
-     FSQ_CLIENT_ID="<your_client_id>"
-     FSQ_CLIENT_SECRET="<your_client_secret>"
-     ```
+## 🌟 Features
+- **Automated end-to-end pipeline:** Fetch, clean, load, feature engineer, and match POIs in one command.
+- **Flexible CLI:** Control bounding box, Foursquare query, spatial threshold, and cleaning from the command line.
+- **Modern data stack:** DuckDB, pandas, pyarrow, sentence-transformers, geopy, shapely, FastAPI.
+- **Hybrid feature tables:** Core features as columns, experimental features as JSON.
+- **Spatial & semantic matching:** Haversine UDF in DuckDB, name/embedding/category/phone heuristics.
+- **Reproducibility:** Clean runs, robust error handling, and clear logging.
 
-## Data Acquisition
-### 1. Fetch Foursquare POIs
-Fetch Foursquare Places for a bounding box and save as Parquet:
+---
+
+## 🎯 End Goal
+- **Input:** Any region (bounding box) and optional POI category (e.g. "food").
+- **Output:**
+  - `data/processed/poi_merged.geojson` — Gold-standard, deduplicated POIs with provenance and confidence scores.
+  - DuckDB tables: `fsq_raw`, `osm_raw`, `*_features`, `candidate_pairs`, `candidate_pairs_scored`.
+- **API-ready:** Designed for easy extension with a FastAPI server for querying merged POIs.
+
+---
+
+## 🛠️ Quickstart
+
+### 1. **Install dependencies**
 ```bash
-python scripts/fetch_fsq.py --bbox "<min_lon>,<min_lat>,<max_lon>,<max_lat>" --output data/raw/fsq_bbox.parquet
+git clone <repo-url>
+cd OSM+FourSquare
+poetry install
 ```
 
-### 2. Fetch OSM POIs
-Fetch OSM amenities for a bounding box and save as Parquet:
+### 2. **Configure API keys**
+Create a `.env` file in the project root:
+```ini
+FSQ_API_KEY=<your_foursquare_api_key>
+HUGGINGFACE_HUB_READER_TOKEN=<your_hf_token>
+```
+
+### 3. **Run the pipeline (one command!)**
 ```bash
-python scripts/fetch_osm.py --bbox "<min_lon>,<min_lat>,<max_lon>,<max_lat>" --output data/raw/osm_bbox.parquet
+PYTHONPATH=$(pwd) poetry run python run.py --bbox="-74.020325,40.700292,-73.907000,40.877483" --query="food" --distance-threshold=100 --clean
+```
+- **`--bbox`**: Bounding box (min_lon,min_lat,max_lon,max_lat)
+- **`--query`**: Foursquare category (optional, e.g. "food")
+- **`--distance-threshold`**: Max match distance in meters (default: 25)
+- **`--clean`**: Start from scratch (removes all local data)
+
+If you omit `--bbox`, you will be prompted for one (default: Manhattan, NYC).
+
+---
+
+## 🖥️ Example Usage
+```bash
+# Clean and run for Manhattan, food POIs, 100m match threshold
+PYTHONPATH=$(pwd) poetry run python run.py --bbox="-74.020325,40.700292,-73.907000,40.877483" --query="food" --distance-threshold=100 --clean
+
+# Run for a custom region and all POIs
+PYTHONPATH=$(pwd) poetry run python run.py --bbox="<min_lon>,<min_lat>,<max_lon>,<max_lat>"
 ```
 
-## Data Verification
-After running the fetch scripts, verify the output Parquet files in `data/raw/` using Python or a tool like `parquet-tools`:
-```python
-import pandas as pd
-df = pd.read_parquet('data/raw/fsq_bbox.parquet')
-print(df.head())
-print(df.dtypes)
-print(len(df))
-```
+---
 
-## Next Steps
-- Ingest both datasets into DuckDB
-- Feature engineering and matching
--## Feature Engineering
+## 📦 Outputs
+- `data/raw/fsq_merged.parquet` — Raw Foursquare POIs
+- `data/raw/osm_merged.parquet` — Raw OSM POIs
+- `smart.db` — DuckDB database with all intermediate and final tables
+- `data/processed/poi_merged.geojson` — Final merged POIs (coming soon)
 
-### Spatial Proximity with DuckDB UDF
+---
 
-For advanced spatial matching, the pipeline registers a Python Haversine function as a DuckDB UDF. This allows efficient, SQL-based distance calculations for candidate generation and POI matching.
+## ❓ FAQ
+**Q: What if I get API/auth errors?**
+A: Double-check your `.env` file and API keys. See blog_notes.md for troubleshooting tips.
 
-```python
-con.create_function('haversine_distance', haversine_distance,
-    returns='DOUBLE',
-    parameters=['DOUBLE', 'DOUBLE', 'DOUBLE', 'DOUBLE']
-)
-```
+**Q: Can I run only part of the pipeline?**
+A: Yes, but `run.py` is the recommended entry point for reproducibility.
 
-**Example SQL Usage:**
-```sql
-SELECT haversine_distance(40.7128, -74.0060, 34.0522, -118.2437) AS nyc_to_la_km;
-```
+**Q: How do I change the region or POI type?**
+A: Use the `--bbox` and `--query` CLI arguments.
 
-This enables spatial joins and candidate filtering directly in DuckDB, making the pipeline scalable and modern.
-- API and output endpoints
-- Testing and evaluation
+**Q: Where do I find logs and status?**
+A: All steps print clear status messages to the console.
 
-## License
+---
+
+## 🏆 Project Goal
+Deliver a scalable, modern, and research-grade POI reconciliation pipeline that can:
+- Merge, deduplicate, and score POIs from heterogeneous sources
+- Output a high-confidence, provenance-rich GeoJSON layer
+- Serve as a foundation for analytics, mapping, or open-data enrichment
+
+---
+
+## 📄 License
 MIT

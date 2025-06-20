@@ -13,9 +13,9 @@ import pandas as pd
 import json
 from sentence_transformers import SentenceTransformer
 import re
-
-import os
+import os, glob
 from dotenv import load_dotenv
+import argparse
 from math import radians, sin, cos, sqrt, atan2
 
 
@@ -140,9 +140,29 @@ def compute_core_features(df, source):
         df["category_canon"] = df["amenity"].fillna("").apply(lambda x: canonicalize_category(x, source))
         # Extract from tags JSON if not present as column
         if "phone" not in df.columns:
-            df["phone"] = df["tags"].apply(lambda t: json.loads(t).get("phone") if pd.notnull(t) else None)
+            def extract_phone(tags):
+                if not pd.notnull(tags):
+                    return None
+                if isinstance(tags, dict):
+                    return tags.get("phone")
+                try:
+                    tags_dict = json.loads(tags)
+                    return tags_dict.get("phone")
+                except Exception:
+                    return None
+            df["phone"] = df["tags"].apply(extract_phone)
         if "website" not in df.columns:
-            df["website"] = df["tags"].apply(lambda t: json.loads(t).get("website") if pd.notnull(t) else None)
+            def extract_website(tags):
+                if not pd.notnull(tags):
+                    return None
+                if isinstance(tags, dict):
+                    return tags.get("website")
+                try:
+                    tags_dict = json.loads(tags)
+                    return tags_dict.get("website")
+                except Exception:
+                    return None
+            df["website"] = df["tags"].apply(extract_website)
         df["phone_norm"] = df["phone"].apply(normalize_phone)
         df["website_norm"] = df["website"].apply(normalize_website)
     else:
@@ -176,7 +196,34 @@ def compute_extra_features(row):
     }
     return json.dumps(features)
 
+DISTANCE_THRESHOLD_KM = 0.025  # Default 25 meters
+
 def main():
+    global DISTANCE_THRESHOLD_KM
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--distance-threshold', type=float, default=25, help='Spatial join threshold in meters (default: 25)')
+    parser.add_argument('--clean', action='store_true', help='Purge all DuckDB tables before running')
+    args = parser.parse_args()
+    DISTANCE_THRESHOLD_KM = args.distance_threshold / 1000.0  # meters to km
+
+    con = duckdb.connect(DB_PATH)
+    if args.clean:
+        print("[INFO] --clean passed: Purging all DuckDB tables and Parquet files for a fresh start.")
+        # Delete all Parquet files in data/raw/ and data/processed/
+        for folder in ["data/raw", "data/processed"]:
+            if os.path.exists(folder):
+                for f in glob.glob(os.path.join(folder, "*.parquet")):
+                    try:
+                        os.remove(f)
+                        print(f"[INFO] Deleted Parquet file: {f}")
+                    except Exception as e:
+                        print(f"[WARN] Could not delete {f}: {e}")
+        # Drop all user tables
+        tables = con.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='main'").fetchall()
+        for (tbl,) in tables:
+            con.execute(f"DROP TABLE IF EXISTS {tbl}")
+        print("[INFO] All tables and Parquet files dropped.")
+
     con = duckdb.connect(DB_PATH)
     # Register haversine_distance as a DuckDB UDF
     con.create_function(
@@ -209,7 +256,7 @@ def main():
     print("Feature engineering complete.")
 
     # Generate candidate pairs for spatial join (radius 25 meters)
-    con.execute("""
+    con.execute(f"""
         CREATE OR REPLACE TABLE candidate_pairs AS
         SELECT
             f.id AS fsq_id,
@@ -217,9 +264,42 @@ def main():
             haversine_distance(f.lat, f.lng, o.lat, o.lon) AS distance_km
         FROM fsq_features f
         JOIN osm_features o
-            ON haversine_distance(f.lat, f.lng, o.lat, o.lon) < 0.025
+            ON haversine_distance(f.lat, f.lng, o.lat, o.lon) < {DISTANCE_THRESHOLD_KM}
     """)
-    print("[INFO] candidate_pairs table created with spatial join (radius 25 meters)")
+    print(f"[INFO] candidate_pairs table created with spatial join (radius {DISTANCE_THRESHOLD_KM} meters)")
+
+    # Candidate scoring: join features and compute weighted score
+    # Scoring formula (example):
+    #   score = 1.0 * (1 - min(distance_km/0.025, 1))
+    #         + 1.0 * category_score
+    #         + 1.0 * phone_website_score
+    #   (all terms in [0,1], higher is better)
+    con.execute("DROP TABLE IF EXISTS candidate_pairs_scored")
+    con.execute(f"""
+        CREATE TABLE candidate_pairs_scored AS
+        SELECT
+            c.fsq_id,
+            c.osm_id,
+            c.distance_km,
+            -- Category score: 1 if canonical categories match, else 0
+            CASE WHEN f.category_canon IS NOT NULL AND o.category_canon IS NOT NULL AND f.category_canon = o.category_canon THEN 1 ELSE 0 END AS category_score,
+            -- Phone/website score: 1 if either matches, else 0
+            CASE WHEN (f.phone_norm IS NOT NULL AND o.phone_norm IS NOT NULL AND f.phone_norm = o.phone_norm)
+                      OR (f.website_norm IS NOT NULL AND o.website_norm IS NOT NULL AND f.website_norm = o.website_norm)
+                 THEN 1 ELSE 0 END AS phone_website_score,
+            -- Weighted sum score
+            (
+                1.0 * (1 - LEAST(c.distance_km/{DISTANCE_THRESHOLD_KM}, 1))
+                + 1.0 * (CASE WHEN f.category_canon IS NOT NULL AND o.category_canon IS NOT NULL AND f.category_canon = o.category_canon THEN 1 ELSE 0 END)
+                + 1.0 * (CASE WHEN (f.phone_norm IS NOT NULL AND o.phone_norm IS NOT NULL AND f.phone_norm = o.phone_norm)
+                               OR (f.website_norm IS NOT NULL AND o.website_norm IS NOT NULL AND f.website_norm = o.website_norm)
+                            THEN 1 ELSE 0 END)
+            ) AS score
+        FROM candidate_pairs c
+        JOIN fsq_features f ON c.fsq_id = f.id
+        JOIN osm_features o ON c.osm_id = o.id
+    """)
+    print(f"[INFO] candidate_pairs_scored table created with matching scores.")
 
 if __name__ == "__main__":
     main()

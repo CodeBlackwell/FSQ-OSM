@@ -89,3 +89,28 @@ After a string of cryptic 404s, the breakthrough came by aligning precisely with
 - **Bugs & Obstacles:** Needed to ensure the UDF was correctly registered and callable from SQL. Verified with both print output and demo query.
 - **Key Deliberations:** Weighed Python vs. SQL approaches; chose DuckDB UDF for performance, scalability, and portfolio value. Ensured the solution is extensible for future spatial features.
 - **Color Commentary:** This is the kind of hybrid engineering that makes a project stand out—Python and DuckDB, working together for analytics magic. The demo query’s result was a satisfying proof: spatial features, leveled up!
+
+---
+
+## 2025-06-20T13:10:22-04:00 – Unified Pipeline Orchestration & CLI Overhaul
+
+**Task Title / Objective:**
+Streamline the OSM + Foursquare POI pipeline into a single orchestrated CLI (`run.py`) with robust argument handling and full automation of data fetching, loading, and feature engineering.
+
+**Technical Summary:**
+- Refactored `run.py` to handle the entire pipeline: cleaning, fetching Foursquare/OSM data, loading to DuckDB, and running feature engineering.
+- Added CLI arguments for `--clean`, `--bbox`, `--query`, and `--distance-threshold` to allow reproducible, configurable runs.
+- Ensured all subprocess calls pass arguments correctly, especially bounding box and query, to avoid `argparse` errors.
+- Feature engineering, candidate generation, and scoring now run seamlessly as part of the orchestrator.
+
+**Bugs & Obstacles:**
+- Major bug: `argparse` in fetch scripts failed when bbox was split into multiple arguments; fixed by passing `--bbox=<value>` as a single string.
+- Early attempts to run feature engineering after cleaning failed due to missing DuckDB tables; solved by enforcing correct pipeline order.
+- CLI confusion from redundant `--clean` in feature_engineering.py resolved by centralizing all orchestration in `run.py`.
+
+**Key Deliberations:**
+- Considered keeping some manual steps for flexibility, but unified CLI was chosen for reliability and reproducibility.
+- Decided to prompt for bbox only if not provided, balancing automation with user control.
+
+**Color Commentary:**
+This refactor felt like a relay race—each script now hands off smoothly to the next, no baton drops! The CLI is finally a power tool: one command, full pipeline, zero guesswork. Watching the pipeline run end-to-end with live status updates was a genuine "it just works" moment—dev joy unlocked.
