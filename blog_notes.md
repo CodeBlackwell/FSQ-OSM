@@ -32,7 +32,33 @@ What a journey! API migrations are always a puzzle, but the breakthrough came wi
 - **Technical Summary:** The Foursquare Places API v3/v2 endpoints were deprecated, necessitating a full migration to the new base URL (`https://places-api.foursquare.com`). Correct API usage now requires the `Authorization: Bearer <API_KEY>`, `X-Places-Api-Version: <date>`, and `Accept: application/json` headers. Bounding box parameters must be mapped as `sw=min_lat,min_lon` and `ne=max_lat,max_lon`. Only a single API key is needed, not client ID/secret. Scripts were updated to reflect these requirements, and fetch logic was hardened against misconfiguration.
 - **Bugs & Obstacles:** Initial attempts using old endpoints or incorrect headers resulted in 401/400 errors. The distinction between API key and client credentials was unclear from the docs. Bbox parameters were initially mapped incorrectly, leading to empty or failed responses. Debugging required careful inspection of both error messages and Foursquare’s evolving documentation.
 - **Key Deliberations:** Considered patching the old scripts versus a full rewrite; opted for a clean migration to avoid tech debt. Weighed the pros and cons of hardcoding header logic versus loading from config. Chose to centralize API requirements for maintainability and future-proofing.
-- **Color Commentary:** This was a classic API migration gauntlet: shifting sands in documentation, silent failures, and authentication gotchas at every turn. But after a series of 401s and a few “aha!” moments, the new fetch layer emerged stronger, leaner, and ready for production-scale scraping. The lesson? Always check the docs—and then check them again tomorrow!
+- **Color Commentary:** This was a classic API migration gauntlet: shifting sands in documentation, silent failures, and authentication gotchas at every turn. But after a few “aha!” moments, the new fetch layer emerged stronger, leaner, and ready for production-scale scraping. The lesson? Always check the docs—and then check them again tomorrow!
+
+---
+
+### 2025-06-20T10:44:19-04:00 – Foursquare API Fetch Success
+
+**Task Title / Objective:**
+Fix Foursquare API integration to fetch a valid, multi-record POI dataset for Manhattan using the correct endpoint, headers, and parameters.
+
+**Technical Summary:**
+- Identified that the previous endpoint (`places-api.foursquare.com`) was deprecated and returned 404 errors.
+- Updated the fetch script to use the correct v3 endpoint: `https://api.foursquare.com/v3/places/search`.
+- Set the `X-Places-Api-Version` header to a valid date (`20230801`), and ensured the bounding box is mapped as `sw=min_lat,min_lon` and `ne=max_lat,max_lon`.
+- Added support for a `--query` CLI argument and improved verbose logging for debugging.
+- The script now successfully fetches valid POI data from Foursquare for Manhattan, matching expectations.
+
+**Bugs & Obstacles:**
+- Persistent 404 errors due to legacy endpoint and future-dated version header.
+- Difficulty confirming parameter mapping and API requirements due to sparse docs and legacy code fragments.
+- Solution: Carefully cross-referenced Foursquare docs, updated endpoint and headers, and validated with verbose API output.
+
+**Key Deliberations:**
+- Considered legacy vs. new endpoints and header dates; chose the documented v3 endpoint and a recent, valid version header for maximum compatibility.
+- Chose to expose the query parameter for flexibility and easier debugging.
+
+**Color Commentary:**
+After a string of cryptic 404s, the breakthrough came by aligning precisely with Foursquare’s latest API docs. The tension broke as the first real POI batch streamed in—proof that sometimes, the right URL is everything. This was a classic case of “read the docs, then read them again.”
 
 ---
 
