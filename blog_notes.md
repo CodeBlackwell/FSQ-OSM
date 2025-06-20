@@ -23,3 +23,13 @@ Hybrid Feature Table Schema Decision and API Version Migration
 
 ### Color Commentary
 What a journey! API migrations are always a puzzle, but the breakthrough came with a working cURL and a careful header-by-header translation. The hybrid schema debate was a real architectural crossroads—balancing flexibility with performance. Now, with the data pipeline humming and the plan ready for experimentation, the project is poised for some serious POI-matching showdowns. Onward to feature engineering! 🚀
+
+---
+
+### 2025-06-20T06:08:39-04:00 — Feature Engineering: Embeddings
+
+- **Task Title / Objective:** Implement and run semantic name embeddings for POI feature engineering.
+- **Technical Summary:** Integrated `sentence-transformers` (`all-MiniLM-L6-v2`) into the feature engineering pipeline. Script now generates and stores 384-dim embeddings for all POI names in DuckDB.
+- **Bugs & Obstacles:** Encountered persistent HuggingFace Hub 401 Unauthorized errors due to token issues. Resolved by creating a new “Read” token and explicitly loading it from `.env` as `HUGGINGFACE_HUB_READER_TOKEN`, mapped to `HUGGINGFACE_HUB_TOKEN` in the script.
+- **Key Deliberations:** Considered different ways to inject the access token (global env, `.env`, explicit script logic). Chose `.env` + DRY mapping for reproducibility and clarity.
+- **Color Commentary:** Wrestling with HuggingFace authentication felt like a rite of passage! The relief when embeddings started flowing into DuckDB was palpable—onward to trigram similarity!
