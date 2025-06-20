@@ -17,6 +17,8 @@ import re
 
 import os
 from dotenv import load_dotenv
+from math import radians, sin, cos, sqrt, atan2
+
 
 load_dotenv()
 token = os.getenv("HUGGINGFACE_HUB_READER_TOKEN")
@@ -24,6 +26,21 @@ if token:
     os.environ["HUGGINGFACE_HUB_TOKEN"] = token
 
 DB_PATH = "smart.db"
+
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """
+    Compute the great-circle distance between two points (lat/lon) in kilometers.
+    """
+    R = 6371.0  # Earth radius in kilometers
+    lat1, lon1, lat2, lon2 = map(float, [lat1, lon1, lat2, lon2])
+    phi1 = radians(lat1)
+    phi2 = radians(lat2)
+    dphi = radians(lat2 - lat1)
+    dlambda = radians(lon2 - lon1)
+    a = sin(dphi / 2) ** 2 + cos(phi1) * cos(phi2) * sin(dlambda / 2) ** 2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return R * c
 
 
 def extract_trigrams(text):
@@ -47,10 +64,26 @@ def compute_core_features(df, source):
     return df
 
 def compute_extra_features(row):
-    # Example: lowercased name, punctuation-stripped name, etc.
+    name = row["name"] if pd.notnull(row["name"]) else ""
+    name_lower = name.lower()
+    name_no_punct = re.sub(r'[^a-z0-9 ]+', '', name_lower)
+    name_no_punct_space = re.sub(r'[^a-z0-9]+', '', name_lower)
+    # Remove common legal suffixes (match at end of string, ignore punctuation and case)
+    legal_suffixes = [
+        "inc", "llc", "ltd", "corp", "co", "pllc", "plc", "gmbh", "ag", "sa", "sarl", "bv", "oy", "ab", "nv", "spa", "sas", "kft", "sro", "as", "aps", "oyj", "pty", "pte"
+    ]
+    # Remove suffix if present as last word (after stripping punctuation)
+    tokens = name_no_punct.strip().split()
+    if tokens and tokens[-1] in legal_suffixes:
+        tokens = tokens[:-1]
+    name_no_legal_suffix = " ".join(tokens)
     features = {
-        "name_lower": row["name"].lower() if pd.notnull(row["name"]) else None,
-        # Add more as needed...
+        "name_lower": name_lower if name else None,
+        "name_no_punct": name_no_punct if name else None,
+        "name_no_punct_space": name_no_punct_space if name else None,
+        "name_no_legal_suffix": name_no_legal_suffix if name else None,
+        "name_token_count": len(name.split()) if name else 0,
+        "name_length": len(name) if name else 0,
     }
     return json.dumps(features)
 
