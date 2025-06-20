@@ -35,38 +35,48 @@ def flatten_fsq_results(results):
     return pd.DataFrame(rows)
 
 # Fetch all pages of results using cursor-based pagination
-def fetch_fsq_api(api_key, bbox, limit=50):
+def fetch_fsq_api(api_key, bbox, query="food", limit=50, verbose=False):
+    """
+    Fetch Foursquare Places using the v3 API with bbox, query, and pagination.
+    bbox: [min_lon, min_lat, max_lon, max_lat]
+    query: search term (default: 'food')
+    limit: number of results per page (max 50)
+    verbose: print raw API response (first page)
+    """
+    # FSQ_API_URL = "https://api.foursquare.com/v3/places/search"
     min_lon, min_lat, max_lon, max_lat = bbox
     headers = {
         "Accept": "application/json",
-        # For v3 API, use API key directly in Authorization header
         "Authorization": f"Bearer {api_key}",
-        # Optional: specify version header
         "X-Places-Api-Version": "2025-06-17",
     }
     params = {
-        "ne": f"{max_lat},{max_lon}",  # northeast corner (lat,lon)
-        "sw": f"{min_lat},{min_lon}",  # southwest corner (lat,lon)
-        "limit": limit,
+        "sw": f"{min_lat},{min_lon}",
+        "ne": f"{max_lat},{max_lon}",
+        "query": query,
+        "limit": limit
     }
     results = []
     cursor = None
-
+    page = 0
     while True:
         if cursor:
             params["cursor"] = cursor
+        else:
+            params.pop("cursor", None)
         resp = requests.get(FSQ_API_URL, headers=headers, params=params)
-        try:
-            resp.raise_for_status()
-        except requests.HTTPError as e:
-            sys.exit(f"API request failed: {e}\nResponse: {resp.text}")
-
+        if verbose and page == 0:
+            print("[VERBOSE] Raw FSQ API response (first page):")
+            print(resp.text)
+        if resp.status_code != 200:
+            print(f"[ERROR] FSQ API returned {resp.status_code}: {resp.text}")
+            break
         data = resp.json()
         results.extend(data.get("results", []))
         cursor = data.get("context", {}).get("next_cursor")
-        if not cursor:
+        page += 1
+        if not cursor or len(results) >= limit:
             break
-
     return flatten_fsq_results(results)
 
 
@@ -79,6 +89,10 @@ def main():
     parser.add_argument(
         '--output', type=str, required=True,
         help='Output Parquet file path'
+    )
+    parser.add_argument(
+        '--query', type=str, default='food',
+        help='Search query for FSQ API (default: "food")'
     )
     parser.add_argument(
         '--verbose', action='store_true',
@@ -104,13 +118,13 @@ def main():
     print("[INFO] Foursquare API key loaded.")
 
     # Fetch data
-    df = fetch_fsq_api(api_key, bbox)
+    df = fetch_fsq_api(api_key, bbox, query=args.query, verbose=args.verbose)
     if args.verbose:
         print(f"[VERBOSE] DataFrame shape: {df.shape}")
         print(f"[VERBOSE] DataFrame columns: {list(df.columns)}")
         print(f"[VERBOSE] DataFrame head:\n{df.head()}\n")
     if df.empty:
-        print("No places found for the given bounding box.")
+        print("No places found for the given bounding box and query.")
     else:
         table = pa.Table.from_pandas(df, preserve_index=False)
         os.makedirs(os.path.dirname(args.output), exist_ok=True)
