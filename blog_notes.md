@@ -33,3 +33,13 @@ What a journey! API migrations are always a puzzle, but the breakthrough came wi
 - **Bugs & Obstacles:** Encountered persistent HuggingFace Hub 401 Unauthorized errors due to token issues. Resolved by creating a new “Read” token and explicitly loading it from `.env` as `HUGGINGFACE_HUB_READER_TOKEN`, mapped to `HUGGINGFACE_HUB_TOKEN` in the script.
 - **Key Deliberations:** Considered different ways to inject the access token (global env, `.env`, explicit script logic). Chose `.env` + DRY mapping for reproducibility and clarity.
 - **Color Commentary:** Wrestling with HuggingFace authentication felt like a rite of passage! The relief when embeddings started flowing into DuckDB was palpable—onward to trigram similarity!
+
+---
+
+### 2025-06-20T06:49:47-04:00 — Trigram Similarity & Testing Lock-in
+
+- **Task Title / Objective:** Implement robust trigram extraction for POI name similarity and add regression tests.
+- **Technical Summary:** Updated `extract_trigrams` to remove all spaces and punctuation before extracting sorted, unique trigrams, following best practices for fuzzy entity matching. Created and updated `pytest` unit tests to match the new logic, ensuring future-proof regression protection.
+- **Bugs & Obstacles:** Faced recurring `ModuleNotFoundError` due to Python path confusion between Poetry, pytest, and the shell. Solved by installing pytest as a dev dependency and explicitly setting `PYTHONPATH=$(pwd)` in test runs.
+- **Key Deliberations:** Considered whether to include spaces in trigrams; chose to remove them for maximum robustness and alignment with industry standards. Updated tests to reflect the true output of the improved function.
+- **Color Commentary:** The test failures were a gauntlet, but each one brought the code closer to bulletproof. Now, every POI name gets the same fair shake—no matter how quirky the spacing or punctuation. Regression safety net: deployed!

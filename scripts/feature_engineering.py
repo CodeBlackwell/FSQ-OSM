@@ -13,6 +13,7 @@ import duckdb
 import pandas as pd
 import json
 from sentence_transformers import SentenceTransformer
+import re
 
 import os
 from dotenv import load_dotenv
@@ -24,6 +25,15 @@ if token:
 
 DB_PATH = "smart.db"
 
+
+def extract_trigrams(text):
+    # Lowercase, remove all non-alphanumeric characters (including spaces)
+    text = re.sub(r'[^a-z0-9]+', '', text.lower())
+    if len(text) < 3:
+        return []
+    trigrams = [text[i:i+3] for i in range(len(text)-2)]
+    return sorted(set(trigrams))
+
 def compute_core_features(df, source):
     # Load the embedding model only once
     model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -31,7 +41,8 @@ def compute_core_features(df, source):
     names = df["name"].fillna("").tolist()
     embeddings = model.encode(names, show_progress_bar=True)
     df["embedding"] = [emb.tolist() for emb in embeddings]
-    df["name_trigram"] = None  # TODO: Compute trigram similarity
+    # Compute sorted list of trigrams for each name
+    df["name_trigram"] = df["name"].fillna("").apply(extract_trigrams)
     df["category_canon"] = None  # TODO: Map to canonical categories
     return df
 

@@ -298,6 +298,14 @@ python-versions = ">=3.6"
 all = ["ruff (>=0.6.2)", "mypy (>=1.11.2)", "pytest (>=8.3.2)", "flake8 (>=7.1.1)"]
 
 [[package]]
+name = "iniconfig"
+version = "2.1.0"
+description = "brain-dead simple config-ini parsing"
+category = "dev"
+optional = false
+python-versions = ">=3.8"
+
+[[package]]
 name = "isort"
 version = "6.0.1"
 description = "A Python utility / library to sort Python imports."
@@ -609,6 +617,18 @@ test = ["appdirs (==1.4.4)", "covdefaults (>=2.3)", "pytest-cov (>=6)", "pytest-
 type = ["mypy (>=1.14.1)"]
 
 [[package]]
+name = "pluggy"
+version = "1.6.0"
+description = "plugin and hook calling mechanisms for python"
+category = "dev"
+optional = false
+python-versions = ">=3.9"
+
+[package.extras]
+dev = ["pre-commit", "tox"]
+testing = ["pytest", "pytest-benchmark", "coverage"]
+
+[[package]]
 name = "pyarrow"
 version = "20.0.0"
 description = "Python library for Apache Arrow"
@@ -665,6 +685,17 @@ optional = false
 python-versions = ">=3.9"
 
 [[package]]
+name = "pygments"
+version = "2.19.1"
+description = "Pygments is a syntax highlighting package written in Python."
+category = "dev"
+optional = false
+python-versions = ">=3.8"
+
+[package.extras]
+windows-terminal = ["colorama (>=0.4.6)"]
+
+[[package]]
 name = "pyogrio"
 version = "0.11.0"
 description = "Vectorized spatial vector file format I/O using GDAL/OGR"
@@ -693,6 +724,26 @@ python-versions = ">=3.10"
 
 [package.dependencies]
 certifi = "*"
+
+[[package]]
+name = "pytest"
+version = "8.4.1"
+description = "pytest: simple powerful testing with Python"
+category = "dev"
+optional = false
+python-versions = ">=3.9"
+
+[package.dependencies]
+colorama = {version = ">=0.4", markers = "sys_platform == \"win32\""}
+exceptiongroup = {version = ">=1", markers = "python_version < \"3.11\""}
+iniconfig = ">=1"
+packaging = ">=20"
+pluggy = ">=1.5,<2"
+pygments = ">=2.7.2"
+tomli = {version = ">=1", markers = "python_version < \"3.11\""}
+
+[package.extras]
+dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
 
 [[package]]
 name = "python-dateutil"
@@ -1128,7 +1179,7 @@ standard = ["colorama (>=0.4)", "httptools (>=0.6.3)", "python-dotenv (>=0.13)",
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "019b0e7e3bae95a619b272fec44daedc1764a62f6d1b3796f7d28edb1f0a01a4"
+content-hash = "2fab04888b364a3167ef84fc77f74fa9667c7b8bf44bf24e6baaacfecd2abffd"
 
 [metadata.files]
 annotated-types = []
@@ -1151,6 +1202,7 @@ h11 = []
 hf-xet = []
 huggingface-hub = []
 idna = []
+iniconfig = []
 isort = []
 jinja2 = []
 joblib = []
@@ -1179,13 +1231,16 @@ pandas = []
 pathspec = []
 pillow = []
 platformdirs = []
+pluggy = []
 pyarrow = []
 pycodestyle = []
 pydantic = []
 pydantic-core = []
 pyflakes = []
+pygments = []
 pyogrio = []
 pyproj = []
+pytest = []
 python-dateutil = []
 python-dotenv = []
 pytz = []
