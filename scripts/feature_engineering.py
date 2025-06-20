@@ -89,6 +89,21 @@ def compute_extra_features(row):
 
 def main():
     con = duckdb.connect(DB_PATH)
+    # Register haversine_distance as a DuckDB UDF
+    con.create_function(
+        'haversine_distance',
+        haversine_distance,
+        parameters=['DOUBLE', 'DOUBLE', 'DOUBLE', 'DOUBLE'],
+        return_type='DOUBLE'
+    )
+    print("[INFO] Registered haversine_distance as DuckDB UDF.")
+
+    # Demo: Compute distance between two points (NYC and LA)
+    demo_query = """
+        SELECT haversine_distance(40.7128, -74.0060, 34.0522, -118.2437) AS nyc_to_la_km
+    """
+    print("[DEMO] NYC to LA distance (km):", con.execute(demo_query).fetchone()[0])
+
     for source, raw_table, feat_table in [
         ("fsq", "fsq_raw", "fsq_features"),
         ("osm", "osm_raw", "osm_features"),
@@ -103,6 +118,22 @@ def main():
             f"CREATE TABLE {feat_table} AS SELECT * FROM df"
         )
     print("Feature engineering complete.")
+
+    # Generate candidate pairs table using spatial join (within 0.5 km)
+    print("[INFO] Generating candidate_pairs table with spatial join (radius 0.5 km)...")
+    con.execute("DROP TABLE IF EXISTS candidate_pairs")
+    con.execute("""
+        CREATE TABLE candidate_pairs AS
+        SELECT
+            fsq.id AS fsq_id,
+            osm.id AS osm_id,
+            haversine_distance(fsq.lat, fsq.lng, osm.lat, osm.lon) AS distance_km
+        FROM fsq_features AS fsq
+        JOIN osm_features AS osm
+        ON haversine_distance(fsq.lat, fsq.lng, osm.lat, osm.lon) < 0.5
+    """)
+    n_pairs = con.execute("SELECT COUNT(*) FROM candidate_pairs").fetchone()[0]
+    print(f"[INFO] candidate_pairs table created with {n_pairs} pairs (distance < 0.5 km)")
 
 if __name__ == "__main__":
     main()
