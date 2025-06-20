@@ -50,6 +50,76 @@ def extract_trigrams(text):
     trigrams = [text[i:i+3] for i in range(len(text)-2)]
     return sorted(set(trigrams))
 
+def canonicalize_category(raw_cat, source):
+    """
+    Map raw category/amenity to a canonical category string for matching.
+    """
+    # Lowercase and simple normalization
+    if not isinstance(raw_cat, str):
+        return None
+    cat = raw_cat.lower().strip()
+    # Simple mapping for demo (expand as needed)
+    mapping = {
+        'restaurant': ['restaurant', 'food', 'eatery', 'diner', 'bistro'],
+        'cafe': ['cafe', 'coffee', 'coffee shop'],
+        'bar': ['bar', 'pub', 'tavern'],
+        'bank': ['bank', 'atm'],
+        'hotel': ['hotel', 'motel', 'hostel', 'inn'],
+        'store': ['store', 'shop', 'retail', 'convenience', 'supermarket', 'market', 'grocery'],
+        'school': ['school', 'college', 'university', 'academy'],
+        'park': ['park', 'playground', 'garden'],
+        'pharmacy': ['pharmacy', 'drugstore'],
+        'hospital': ['hospital', 'clinic', 'medical'],
+        'parking': ['parking', 'car park', 'garage'],
+        'museum': ['museum', 'gallery'],
+        'church': ['church', 'temple', 'mosque', 'synagogue'],
+        'transport': ['station', 'bus', 'train', 'subway', 'metro', 'tram', 'airport'],
+    }
+    for canon, keywords in mapping.items():
+        for kw in keywords:
+            if kw in cat:
+                return canon
+    return cat  # fallback: use as-is
+
+def fuzzy_category_match(cat1, cat2):
+    """
+    Returns 1 if canonical categories match, else 0. (Extend for fuzzy/partial match if needed)
+    """
+    if not cat1 or not cat2:
+        return 0
+    return int(cat1 == cat2)
+
+def normalize_phone(phone):
+    """Normalize phone numbers to digits only (for matching)."""
+    if not isinstance(phone, str):
+        return None
+    digits = re.sub(r'\D', '', phone)
+    return digits if digits else None
+
+def normalize_website(url):
+    """Normalize website URLs by stripping protocol and www."""
+    if not isinstance(url, str):
+        return None
+    url = url.lower().strip()
+    url = re.sub(r'^https?://', '', url)
+    url = re.sub(r'^www\.', '', url)
+    url = url.rstrip('/')
+    return url if url else None
+
+def phone_website_match(f_phone, o_phone, f_web, o_web):
+    """
+    Returns 1 if either phone or website matches (normalized, non-empty), else 0.
+    """
+    fp = normalize_phone(f_phone)
+    op = normalize_phone(o_phone)
+    fw = normalize_website(f_web)
+    ow = normalize_website(o_web)
+    if fp and op and fp == op:
+        return 1
+    if fw and ow and fw == ow:
+        return 1
+    return 0
+
 def compute_core_features(df, source):
     # Load the embedding model only once
     model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -59,8 +129,28 @@ def compute_core_features(df, source):
     df["embedding"] = [emb.tolist() for emb in embeddings]
     # Compute sorted list of trigrams for each name
     df["name_trigram"] = df["name"].fillna("").apply(extract_trigrams)
-    df["category_canon"] = None  # TODO: Map to canonical categories
+    # Canonicalize categories
+    if source == "fsq":
+        # Foursquare: column is 'categories' (comma-separated)
+        df["category_canon"] = df["categories"].fillna("").apply(lambda x: canonicalize_category(x.split(",")[0] if x else None, source))
+        df["phone_norm"] = df["phone"].apply(normalize_phone)
+        df["website_norm"] = df["website"].apply(normalize_website)
+    elif source == "osm":
+        # OSM: main column is 'amenity', phone and website may be in tags
+        df["category_canon"] = df["amenity"].fillna("").apply(lambda x: canonicalize_category(x, source))
+        # Extract from tags JSON if not present as column
+        if "phone" not in df.columns:
+            df["phone"] = df["tags"].apply(lambda t: json.loads(t).get("phone") if pd.notnull(t) else None)
+        if "website" not in df.columns:
+            df["website"] = df["tags"].apply(lambda t: json.loads(t).get("website") if pd.notnull(t) else None)
+        df["phone_norm"] = df["phone"].apply(normalize_phone)
+        df["website_norm"] = df["website"].apply(normalize_website)
+    else:
+        df["category_canon"] = None
+        df["phone_norm"] = None
+        df["website_norm"] = None
     return df
+
 
 def compute_extra_features(row):
     name = row["name"] if pd.notnull(row["name"]) else ""
@@ -118,21 +208,18 @@ def main():
         )
     print("Feature engineering complete.")
 
-    # Generate candidate pairs table using spatial join (within 0.5 km)
-    print("[INFO] Generating candidate_pairs table with spatial join (radius 0.5 km)...")
-    con.execute("DROP TABLE IF EXISTS candidate_pairs")
+    # Generate candidate pairs for spatial join (radius 25 meters)
     con.execute("""
-        CREATE TABLE candidate_pairs AS
+        CREATE OR REPLACE TABLE candidate_pairs AS
         SELECT
-            fsq.id AS fsq_id,
-            osm.id AS osm_id,
-            haversine_distance(fsq.lat, fsq.lng, osm.lat, osm.lon) AS distance_km
-        FROM fsq_features AS fsq
-        JOIN osm_features AS osm
-        ON haversine_distance(fsq.lat, fsq.lng, osm.lat, osm.lon) < 0.5
+            f.id AS fsq_id,
+            o.id AS osm_id,
+            haversine_distance(f.lat, f.lng, o.lat, o.lon) AS distance_km
+        FROM fsq_features f
+        JOIN osm_features o
+            ON haversine_distance(f.lat, f.lng, o.lat, o.lon) < 0.025
     """)
-    n_pairs = con.execute("SELECT COUNT(*) FROM candidate_pairs").fetchone()[0]
-    print(f"[INFO] candidate_pairs table created with {n_pairs} pairs (distance < 0.5 km)")
+    print("[INFO] candidate_pairs table created with spatial join (radius 25 meters)")
 
 if __name__ == "__main__":
     main()
