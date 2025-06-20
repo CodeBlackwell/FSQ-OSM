@@ -12,6 +12,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
+import pandas as pd
 
 # Correct Foursquare Places API v3 endpoint - see https://docs.foursquare.com/fsq-developers-places/reference/migration-guide
 FSQ_API_URL = "https://places-api.foursquare.com/places/search"
@@ -81,6 +82,7 @@ def fetch_fsq_api(api_key, bbox, query="food", limit=50, verbose=False):
 
 
 def main():
+    load_dotenv()
     parser = argparse.ArgumentParser(description="Fetch Foursquare Places for a bounding box and save as Parquet.")
     parser.add_argument(
         '--bbox', type=str, required=True,
@@ -99,6 +101,42 @@ def main():
         help='Print verbose output for debugging.'
     )
     args = parser.parse_args()
+
+    # Fast path: use local CSV if present
+    local_csv = "data/ny_places_jan_2022.csv"
+    if os.path.exists(local_csv):
+        print(f"[INFO] Found {local_csv}. Using this file instead of Foursquare API.")
+        df = pd.read_csv(local_csv)
+        # Map columns to expected schema
+        df_out = pd.DataFrame()
+        df_out["id"] = df["fsq_id"]
+        df_out["name"] = df["name"]
+        df_out["lat"] = df["latitude"]
+        df_out["lng"] = df["longitude"]
+        df_out["formatted_address"] = df["address"].fillna("")
+        # Flatten fsq_category_labels (which is a stringified list of lists)
+        def flatten_cats(val):
+            try:
+                # Remove brackets and quotes, then join
+                import ast
+                cats = ast.literal_eval(val)
+                if isinstance(cats, list):
+                    # If nested, flatten
+                    if len(cats) > 0 and isinstance(cats[0], list):
+                        cats = [item for sublist in cats for item in sublist]
+                    return ", ".join(str(x) for x in cats)
+                return str(val)
+            except Exception:
+                return str(val)
+        df_out["categories"] = df["fsq_category_labels"].apply(flatten_cats)
+        df_out["website"] = df["website"].fillna("")
+        df_out["phone"] = df["tel"].fillna("")
+        # Save only expected columns
+        needed_cols = ["id", "name", "lat", "lng", "formatted_address", "categories", "website", "phone"]
+        df_out = df_out[needed_cols]
+        df_out.to_parquet(args.output, index=False)
+        print(f"[INFO] Saved {args.output} from {local_csv} (columns mapped). Exiting.")
+        sys.exit(0)
 
     # Parse bbox
     try:
