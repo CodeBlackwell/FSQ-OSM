@@ -26,6 +26,16 @@ What a journey! API migrations are always a puzzle, but the breakthrough came wi
 
 ---
 
+### 2025-06-20T08:46:13-04:00 — Foursquare API Migration & Authentication Overhaul
+
+- **Task Title / Objective:** Migrate Foursquare data fetching to the latest API, resolve authentication pitfalls, and ensure robust parameter handling for POI acquisition.
+- **Technical Summary:** The Foursquare Places API v3/v2 endpoints were deprecated, necessitating a full migration to the new base URL (`https://places-api.foursquare.com`). Correct API usage now requires the `Authorization: Bearer <API_KEY>`, `X-Places-Api-Version: <date>`, and `Accept: application/json` headers. Bounding box parameters must be mapped as `sw=min_lat,min_lon` and `ne=max_lat,max_lon`. Only a single API key is needed, not client ID/secret. Scripts were updated to reflect these requirements, and fetch logic was hardened against misconfiguration.
+- **Bugs & Obstacles:** Initial attempts using old endpoints or incorrect headers resulted in 401/400 errors. The distinction between API key and client credentials was unclear from the docs. Bbox parameters were initially mapped incorrectly, leading to empty or failed responses. Debugging required careful inspection of both error messages and Foursquare’s evolving documentation.
+- **Key Deliberations:** Considered patching the old scripts versus a full rewrite; opted for a clean migration to avoid tech debt. Weighed the pros and cons of hardcoding header logic versus loading from config. Chose to centralize API requirements for maintainability and future-proofing.
+- **Color Commentary:** This was a classic API migration gauntlet: shifting sands in documentation, silent failures, and authentication gotchas at every turn. But after a series of 401s and a few “aha!” moments, the new fetch layer emerged stronger, leaner, and ready for production-scale scraping. The lesson? Always check the docs—and then check them again tomorrow!
+
+---
+
 ### 2025-06-20T06:08:39-04:00 — Feature Engineering: Embeddings
 
 - **Task Title / Objective:** Implement and run semantic name embeddings for POI feature engineering.
@@ -43,3 +53,13 @@ What a journey! API migrations are always a puzzle, but the breakthrough came wi
 - **Bugs & Obstacles:** Faced recurring `ModuleNotFoundError` due to Python path confusion between Poetry, pytest, and the shell. Solved by installing pytest as a dev dependency and explicitly setting `PYTHONPATH=$(pwd)` in test runs.
 - **Key Deliberations:** Considered whether to include spaces in trigrams; chose to remove them for maximum robustness and alignment with industry standards. Updated tests to reflect the true output of the improved function.
 - **Color Commentary:** The test failures were a gauntlet, but each one brought the code closer to bulletproof. Now, every POI name gets the same fair shake—no matter how quirky the spacing or punctuation. Regression safety net: deployed!
+
+---
+
+### 2025-06-20T07:16:35-04:00 — DuckDB UDF for Spatial Proximity
+
+- **Task Title / Objective:** Register Python Haversine distance as a DuckDB UDF for efficient SQL-based spatial candidate generation.
+- **Technical Summary:** Integrated the `haversine_distance` Python function into DuckDB as a UDF. Demonstrated correctness with a SQL query for NYC-to-LA distance. This enables scalable, in-database spatial joins and candidate filtering for POI reconciliation.
+- **Bugs & Obstacles:** Needed to ensure the UDF was correctly registered and callable from SQL. Verified with both print output and demo query.
+- **Key Deliberations:** Weighed Python vs. SQL approaches; chose DuckDB UDF for performance, scalability, and portfolio value. Ensured the solution is extensible for future spatial features.
+- **Color Commentary:** This is the kind of hybrid engineering that makes a project stand out—Python and DuckDB, working together for analytics magic. The demo query’s result was a satisfying proof: spatial features, leveled up!

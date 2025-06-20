@@ -6,7 +6,6 @@ Feature engineering for POI reconciliation.
 - Stores additional features in a JSON column (extra_features)
 - Writes results to fsq_features and osm_features in DuckDB
 
-NOTE: Embedding, trigram, and category canonicalization logic are placeholders and must be filled in later.
 """
 
 import duckdb

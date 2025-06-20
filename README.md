@@ -51,6 +51,25 @@ print(len(df))
 ## Next Steps
 - Ingest both datasets into DuckDB
 - Feature engineering and matching
+-## Feature Engineering
+
+### Spatial Proximity with DuckDB UDF
+
+For advanced spatial matching, the pipeline registers a Python Haversine function as a DuckDB UDF. This allows efficient, SQL-based distance calculations for candidate generation and POI matching.
+
+```python
+con.create_function('haversine_distance', haversine_distance,
+    returns='DOUBLE',
+    parameters=['DOUBLE', 'DOUBLE', 'DOUBLE', 'DOUBLE']
+)
+```
+
+**Example SQL Usage:**
+```sql
+SELECT haversine_distance(40.7128, -74.0060, 34.0522, -118.2437) AS nyc_to_la_km;
+```
+
+This enables spatial joins and candidate filtering directly in DuckDB, making the pipeline scalable and modern.
 - API and output endpoints
 - Testing and evaluation
 
