@@ -3,25 +3,30 @@
 ## 2025-06-20T03:23:32-04:00 — Feature Engineering Phase & API Migration Breakthrough
 
 ### Task Title / Objective
+
 Hybrid Feature Table Schema Decision and API Version Migration
 
 ### Technical Summary
+
 - Successfully fetched and ingested both Foursquare and OSM POI data for Times Square into DuckDB, with spatial and Bayer indexes.
 - Migrated Foursquare API usage to the new endpoint and authentication scheme (`places-api.foursquare.com`, `Authorization: Bearer <API_KEY>`, `X-Places-Api-Version` header).
 - Chose a hybrid schema for `*_features` tables: core features as columns, experimental/extra features in a JSON column.
 - Updated project plan to explicitly support experimentation and comparison of multiple feature engineering and matching strategies.
 
 ### Bugs & Obstacles
+
 - Foursquare API migration required careful debugging: new base URL, header syntax, and single API key usage. Initial attempts with old endpoints or client ID/secret failed with 401/400 errors.
 - OSM and FSQ longitude column mismatch (`lon` vs `lng`) caused ingestion script errors, resolved by schema-aware indexing.
 - Pre-commit hooks (end-of-file-fixer) blocked commits until files were auto-fixed and re-staged.
 
 ### Key Deliberations
+
 - Considered wide, long, and hybrid table schemas for feature storage. Chose hybrid for flexibility and efficient querying.
 - Decided to support multiple similarity and blocking strategies (semantic, n-gram, string, spatial, category) for later comparison.
 - Integrated git-lfs for both Parquet and DuckDB files to handle large data artifacts.
 
 ### Color Commentary
+
 What a journey! API migrations are always a puzzle, but the breakthrough came with a working cURL and a careful header-by-header translation. The hybrid schema debate was a real architectural crossroads—balancing flexibility with performance. Now, with the data pipeline humming and the plan ready for experimentation, the project is poised for some serious POI-matching showdowns. Onward to feature engineering! 🚀
 
 ---
@@ -42,6 +47,7 @@ What a journey! API migrations are always a puzzle, but the breakthrough came wi
 Fix Foursquare API integration to fetch a valid, multi-record POI dataset for Manhattan using the correct endpoint, headers, and parameters.
 
 **Technical Summary:**
+
 - Identified that the previous endpoint (`places-api.foursquare.com`) was deprecated and returned 404 errors.
 - Updated the fetch script to use the correct v3 endpoint: `https://api.foursquare.com/v3/places/search`.
 - Set the `X-Places-Api-Version` header to a valid date (`20230801`), and ensured the bounding box is mapped as `sw=min_lat,min_lon` and `ne=max_lat,max_lon`.
@@ -49,11 +55,13 @@ Fix Foursquare API integration to fetch a valid, multi-record POI dataset for Ma
 - The script now successfully fetches valid POI data from Foursquare for Manhattan, matching expectations.
 
 **Bugs & Obstacles:**
+
 - Persistent 404 errors due to legacy endpoint and future-dated version header.
 - Difficulty confirming parameter mapping and API requirements due to sparse docs and legacy code fragments.
 - Solution: Carefully cross-referenced Foursquare docs, updated endpoint and headers, and validated with verbose API output.
 
 **Key Deliberations:**
+
 - Considered legacy vs. new endpoints and header dates; chose the documented v3 endpoint and a recent, valid version header for maximum compatibility.
 - Chose to expose the query parameter for flexibility and easier debugging.
 
@@ -98,17 +106,20 @@ After a string of cryptic 404s, the breakthrough came by aligning precisely with
 Streamline the OSM + Foursquare POI pipeline into a single orchestrated CLI (`run.py`) with robust argument handling and full automation of data fetching, loading, and feature engineering.
 
 **Technical Summary:**
+
 - Refactored `run.py` to handle the entire pipeline: cleaning, fetching Foursquare/OSM data, loading to DuckDB, and running feature engineering.
 - Added CLI arguments for `--clean`, `--bbox`, `--query`, and `--distance-threshold` to allow reproducible, configurable runs.
 - Ensured all subprocess calls pass arguments correctly, especially bounding box and query, to avoid `argparse` errors.
 - Feature engineering, candidate generation, and scoring now run seamlessly as part of the orchestrator.
 
 **Bugs & Obstacles:**
+
 - Major bug: `argparse` in fetch scripts failed when bbox was split into multiple arguments; fixed by passing `--bbox=<value>` as a single string.
 - Early attempts to run feature engineering after cleaning failed due to missing DuckDB tables; solved by enforcing correct pipeline order.
 - CLI confusion from redundant `--clean` in feature_engineering.py resolved by centralizing all orchestration in `run.py`.
 
 **Key Deliberations:**
+
 - Considered keeping some manual steps for flexibility, but unified CLI was chosen for reliability and reproducibility.
 - Decided to prompt for bbox only if not provided, balancing automation with user control.
 
@@ -123,16 +134,19 @@ This refactor felt like a relay race—each script now hands off smoothly to the
 Enable robust ingestion of local Foursquare CSV data by mapping columns to the pipeline's expected schema, ensuring seamless fallback from API to local data.
 
 **Technical Summary:**
+
 - Analyzed the header and sample rows of `data/ny_places_jan_2022.csv`.
 - Implemented a mapping in `fetch_fsq.py` to convert columns (`fsq_id`, `latitude`, `longitude`, `address`, etc.) to the expected schema (`id`, `lat`, `lng`, etc.).
 - Flattened the nested category labels and handled missing fields for compatibility.
 - Confirmed that the resulting Parquet file now loads into DuckDB and the pipeline as expected.
 
 **Bugs & Obstacles:**
+
 - Initial pipeline runs failed with a DuckDB `Binder Error` due to schema mismatch (CSV columns did not match expected POI schema).
 - Solution: Added a robust mapping and flattening step in the CSV ingestion logic, ensuring all required fields are present and correctly named.
 
 **Key Deliberations:**
+
 - Considered editing the CSV manually vs. programmatic mapping; chose code-based mapping for reproducibility and future-proofing.
 - Discussed whether to skip, drop, or fill missing fields; opted to fill with empty strings for downstream safety.
 
@@ -147,16 +161,19 @@ This was a classic data pipeline “gotcha”—the kind that turns a quick test
 Enhance FastAPI endpoints to return GeoJSON with real coordinates, provenance, and confidence fields for merged POIs.
 
 **Technical Summary:**
+
 - Updated `/poi` and `/poi/{id}` endpoints to join with `fsq_features` and `osm_features` tables in DuckDB.
 - GeoJSON output now includes real coordinates (preferring Foursquare, else OSM), provenance (source of coordinates), and confidence (match score).
 - Properties for each feature include all matching metadata and additional fields for downstream analytics.
 
 **Bugs & Obstacles:**
+
 - Challenge: Ensured robust fallback logic for missing coordinates between FSQ and OSM sources.
 - Solution: Implemented logic to prefer FSQ coordinates, falling back to OSM if needed, and added provenance flag for transparency.
 
 **Key Deliberations:**
+
 - Considered returning both sets of coordinates vs. a single best guess; opted for a single provenance-tagged geometry for clarity and GeoJSON compatibility.
 
 **Color Commentary:**
-This was a “show me the data!” moment—watching the API finally return real, mappable points (not just nulls) felt like crossing the finish line. The provenance and confidence fields add a layer of trust and transparency, making the output ready for real-world mapping and analysis. Next up: even richer POI details and async performance!
+This was a “show me the data!” moment—watching the API finally return real, mappable points (not just nulls) felt like crossing the finish line. The provenance and confidence fields add a layer of trust and transparency, making the output ready for real-world mapping and analysis.
