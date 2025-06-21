@@ -1,28 +1,101 @@
-# OSM + Foursquare Smart Reconciler
+# 🗺️ OSM + Foursquare Smart Reconciler
 
-## 🚀 Overview
-A robust, reproducible pipeline for merging and deduplicating Points of Interest (POIs) from OpenStreetMap (OSM) and Foursquare (FSQ) within any bounding box. The end goal: **produce a "gold-standard" GeoJSON layer of POIs with provenance, deduplication, and confidence scores**—ready for analytics, mapping, or downstream apps.
-
----
-
-## 🌟 Features
-- **Automated end-to-end pipeline:** Fetch, clean, load, feature engineer, and match POIs in one command.
-- **Flexible CLI:** Control bounding box, Foursquare query, spatial threshold, and cleaning from the command line.
-- **Modern data stack:** DuckDB, pandas, pyarrow, sentence-transformers, geopy, shapely, FastAPI.
-- **Hybrid feature tables:** Core features as columns, experimental features as JSON.
-- **Spatial & semantic matching:** Haversine UDF in DuckDB, name/embedding/category/phone heuristics.
-- **Reproducibility:** Clean runs, robust error handling, and clear logging.
+> **The next-gen open-source platform for POI deduplication, enrichment, and analytics.**
 
 ---
 
-## 🎯 End Goal
-- **Input:** Any region (bounding box) and optional POI category (e.g. "food").
-- **Output:**
-  - `data/processed/poi_merged.geojson` — Gold-standard, deduplicated POIs with provenance and confidence scores.
-  - DuckDB tables: `fsq_raw`, `osm_raw`, `*_features`, `candidate_pairs`, `candidate_pairs_scored`.
-- **API-ready:** Designed for easy extension with a FastAPI server for querying merged POIs.
+## 🚦 What is this?
+A blazing-fast, production-ready pipeline and API for **merging and deduplicating Points of Interest (POIs)** from OpenStreetMap (OSM) and Foursquare (FSQ)—with provenance, confidence, and modern data science baked in.
+
+- **GeoJSON output, ready for analytics, mapping, and apps**
+- **Async FastAPI endpoints** for scalable, real-time POI reconciliation
+- **No vendor lock-in**: Bring your own data, models, or matching logic
 
 ---
+
+## ✨ Why use this?
+- **Stop POI duplication headaches**—get a single, trusted source of truth
+- **Accelerate location analytics**—with provenance and confidence scores
+- **Plug-and-play for maps, dashboards, and machine learning**
+- **Modern Python stack**: DuckDB, pandas, pyarrow, sentence-transformers, FastAPI, uvicorn
+- **Battle-tested in real-world city-scale deployments**
+
+---
+
+## 🚀 Features at a Glance
+- **End-to-end pipeline**: Fetch, clean, feature-engineer, and match POIs in one command
+- **Flexible CLI**: Control bounding box, Foursquare query, spatial threshold, and cleaning
+- **Hybrid feature tables**: Core features as columns, experimental as JSON
+- **Spatial & semantic matching**: Haversine UDF, name/embedding/category/phone heuristics
+- **Async API**: Kick off reconciliation jobs and poll status with job IDs
+- **GeoJSON output**: Provenance and confidence fields for every POI
+- **Extensible**: Add new sources, embeddings, or scoring models
+
+---
+
+## 🖥️ Live API Demo (Async)
+
+```bash
+# Start a reconciliation job for Manhattan
+curl -X POST "http://127.0.0.1:8000/merge/run" \
+  -H "Content-Type: application/json" \
+  -d '{"min_lon": -74.02, "min_lat": 40.70, "max_lon": -73.90, "max_lat": 40.88}'
+
+# Poll job status
+curl "http://127.0.0.1:8000/merge/status/<job_id>"
+
+# Get merged POIs as GeoJSON
+curl "http://127.0.0.1:8000/poi?limit=5"
+
+# Get a single POI by ID
+curl "http://127.0.0.1:8000/poi/<poi_id>"
+```
+
+---
+
+
+## 🧩 Example Use Cases
+- **Urban analytics & city dashboards**
+- **Retail site selection & competitive analysis**
+- **Open data enrichment for mapping platforms**
+- **Academic research on urban mobility or POI quality**
+
+---
+
+## 🧠 How it Works
+1. **Fetch**: Pull POIs from OSM (Overpass) and Foursquare for any bounding box
+2. **Feature engineering**: Names, categories, embeddings, spatial proximity, phone/website, and more
+3. **Candidate generation**: DuckDB SQL joins with Haversine UDF for spatial blocking
+4. **Scoring & merging**: Weighted scoring, provenance, and confidence
+5. **API**: Async endpoints for job orchestration and GeoJSON retrieval
+
+---
+
+## ❓ FAQ
+**Q: What if I get API/auth errors?**
+A: Double-check your `.env` file and API keys. See `blog_notes.md` for troubleshooting tips.
+
+**Q: Can I run only part of the pipeline?**
+A: Yes, but `run.py` is the recommended entry point for reproducibility.
+
+**Q: How do I change the region or POI type?**
+A: Use the `--bbox` and `--query` CLI arguments.
+
+**Q: Where do I find logs and status?**
+A: All steps print clear status messages to the console and API.
+
+---
+
+## 🏆 Project Goal
+Deliver a scalable, modern, and research-grade POI reconciliation pipeline that can:
+- Merge, deduplicate, and score POIs from heterogeneous sources
+- Output a high-confidence, provenance-rich GeoJSON layer
+- Serve as a foundation for analytics, mapping, or open-data enrichment
+
+---
+
+## 📄 License
+MIT
 
 ## 🛠️ Quickstart
 
