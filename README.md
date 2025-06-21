@@ -1,4 +1,6 @@
-# 🗺️ OSM + Foursquare Smart Reconciler
+# P.O.I (point of interest) Alchemist
+
+## 🗺️ OSM + Foursquare Smart Reconciler
 
 > **The next-gen open-source platform for POI deduplication, enrichment, and analytics.**
 
