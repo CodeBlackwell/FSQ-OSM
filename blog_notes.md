@@ -114,3 +114,49 @@ Streamline the OSM + Foursquare POI pipeline into a single orchestrated CLI (`ru
 
 **Color Commentary:**
 This refactor felt like a relay race—each script now hands off smoothly to the next, no baton drops! The CLI is finally a power tool: one command, full pipeline, zero guesswork. Watching the pipeline run end-to-end with live status updates was a genuine "it just works" moment—dev joy unlocked.
+
+---
+
+## 2025-06-20T20:42:12-04:00 – CSV Schema Mapping & Ingestion Fix
+
+**Task Title / Objective:**
+Enable robust ingestion of local Foursquare CSV data by mapping columns to the pipeline's expected schema, ensuring seamless fallback from API to local data.
+
+**Technical Summary:**
+- Analyzed the header and sample rows of `data/ny_places_jan_2022.csv`.
+- Implemented a mapping in `fetch_fsq.py` to convert columns (`fsq_id`, `latitude`, `longitude`, `address`, etc.) to the expected schema (`id`, `lat`, `lng`, etc.).
+- Flattened the nested category labels and handled missing fields for compatibility.
+- Confirmed that the resulting Parquet file now loads into DuckDB and the pipeline as expected.
+
+**Bugs & Obstacles:**
+- Initial pipeline runs failed with a DuckDB `Binder Error` due to schema mismatch (CSV columns did not match expected POI schema).
+- Solution: Added a robust mapping and flattening step in the CSV ingestion logic, ensuring all required fields are present and correctly named.
+
+**Key Deliberations:**
+- Considered editing the CSV manually vs. programmatic mapping; chose code-based mapping for reproducibility and future-proofing.
+- Discussed whether to skip, drop, or fill missing fields; opted to fill with empty strings for downstream safety.
+
+**Color Commentary:**
+This was a classic data pipeline “gotcha”—the kind that turns a quick test run into a full-on forensic investigation! But with a little schema sleuthing and some Pythonic column wrangling, the pipeline is now bulletproof against local data surprises. Onward to API endpoints and the next orchestration milestone!
+
+---
+
+## 2025-06-20T21:34:13-04:00 – API GeoJSON Output Enhancement
+
+**Task Title / Objective:**
+Enhance FastAPI endpoints to return GeoJSON with real coordinates, provenance, and confidence fields for merged POIs.
+
+**Technical Summary:**
+- Updated `/poi` and `/poi/{id}` endpoints to join with `fsq_features` and `osm_features` tables in DuckDB.
+- GeoJSON output now includes real coordinates (preferring Foursquare, else OSM), provenance (source of coordinates), and confidence (match score).
+- Properties for each feature include all matching metadata and additional fields for downstream analytics.
+
+**Bugs & Obstacles:**
+- Challenge: Ensured robust fallback logic for missing coordinates between FSQ and OSM sources.
+- Solution: Implemented logic to prefer FSQ coordinates, falling back to OSM if needed, and added provenance flag for transparency.
+
+**Key Deliberations:**
+- Considered returning both sets of coordinates vs. a single best guess; opted for a single provenance-tagged geometry for clarity and GeoJSON compatibility.
+
+**Color Commentary:**
+This was a “show me the data!” moment—watching the API finally return real, mappable points (not just nulls) felt like crossing the finish line. The provenance and confidence fields add a layer of trust and transparency, making the output ready for real-world mapping and analysis. Next up: even richer POI details and async performance!
